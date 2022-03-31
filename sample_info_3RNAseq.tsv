@@ -1,0 +1,37 @@
+sample	genotype	stress	timepoint	replicate	red_sample	condition	plants
+R58C_S1_0_1	R58C	S1	0	r1	R58C_S1_0	Non_treated	naive
+R58C_S1_0_2	R58C	S1	0	r2	R58C_S1_0	Non_treated	naive
+R58C_S1_0_3	R58C	S1	0	r3	R58C_S1_0	Non_treated	naive
+R58C_S1_90_1	R58C	S1	90	r1	R58C_S1_90	Primary Stress	naive
+R58C_S1_90_2	R58C	S1	90	r2	R58C_S1_90	Primary Stress	naive
+R58C_S1_90_3	R58C	S1	90	r3	R58C_S1_90	Primary Stress	naive
+R58C_S1_180_1	R58C	S1	180	r1	R58C_S1_180	Primary Stress	naive
+R58C_S1_180_2	R58C	S1	180	r2	R58C_S1_180	Primary Stress	naive
+R58C_S1_180_3	R58C	S1	180	r3	R58C_S1_180	Primary Stress	naive
+R58C_S4_0_1	R58C	S4	0	r1	R58C_S4_0	Recovery	trained
+R58C_S4_0_2	R58C	S4	0	r2	R58C_S4_0	Recovery	trained
+R58C_S4_0_3	R58C	S4	0	r3	R58C_S4_0	Recovery	trained
+R58C_S4_90_1	R58C	S4	90	r1	R58C_S4_90	Subsequent Stress	trained
+R58C_S4_90_2	R58C	S4	90	r2	R58C_S4_90	Subsequent Stress	trained
+R58C_S4_90_3	R58C	S4	90	r3	R58C_S4_90	Subsequent Stress	trained
+R58C_S4_180_1	R58C	S4	180	r1	R58C_S4_180	Subsequent Stress	trained
+R58C_S4_180_2	R58C	S4	180	r2	R58C_S4_180	Subsequent Stress	trained
+R58C_S4_180_3	R58C	S4	180	r3	R58C_S4_180	Subsequent Stress	trained
+Wt_S1_0_1	Wt	S1	0	r1	Wt_S1_0	Non_treated	naive
+Wt_S1_0_2	Wt	S1	0	r2	Wt_S1_0	Non_treated	naive
+Wt_S1_0_3	Wt	S1	0	r3	Wt_S1_0	Non_treated	naive
+Wt_S1_90_1	Wt	S1	90	r1	Wt_S1_90	Primary Stress	naive
+Wt_S1_90_2	Wt	S1	90	r2	Wt_S1_90	Primary Stress	naive
+Wt_S1_90_3	Wt	S1	90	r3	Wt_S1_90	Primary Stress	naive
+Wt_S1_180_1	Wt	S1	180	r1	Wt_S1_180	Primary Stress	naive
+Wt_S1_180_2	Wt	S1	180	r2	Wt_S1_180	Primary Stress	naive
+Wt_S1_180_3	Wt	S1	180	r3	Wt_S1_180	Primary Stress	naive
+Wt_S4_0_1	Wt	S4	0	r1	Wt_S4_0	Recovery	trained
+Wt_S4_0_2	Wt	S4	0	r2	Wt_S4_0	Recovery	trained
+Wt_S4_0_3	Wt	S4	0	r3	Wt_S4_0	Recovery	trained
+Wt_S4_90_1	Wt	S4	90	r1	Wt_S4_90	Subsequent Stress	trained
+Wt_S4_90_2	Wt	S4	90	r2	Wt_S4_90	Subsequent Stress	trained
+Wt_S4_90_3	Wt	S4	90	r3	Wt_S4_90	Subsequent Stress	trained
+Wt_S4_180_1	Wt	S4	180	r1	Wt_S4_180	Subsequent Stress	trained
+Wt_S4_180_2	Wt	S4	180	r2	Wt_S4_180	Subsequent Stress	trained
+Wt_S4_180_3	Wt	S4	180	r3	Wt_S4_180	Subsequent Stress	trained

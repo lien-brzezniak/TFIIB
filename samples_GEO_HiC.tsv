@@ -1,0 +1,13 @@
+sample	genotype	condition	brep	stress	plants
+Sample1	Wt	NT	r1	water	naive
+Sample2	Wt	S1	r1	drought	naive
+Sample3	Wt	R	r1	water	trained
+Sample4	Wt	S2	r1	drought	trained
+Sample5	R58C	NT	r1	water	naive
+Sample6	R58C	S1	r1	drought	naive
+Sample7	R58C	R	r1	water	trained
+Sample8	R58C	S2	r1	drought	trained
+Sample9	Wt	NT	r2	water	naive
+Sample10	Wt	S1	r2	drought	naive
+Sample11	Wt	R	r2	water	trained
+Sample12	R58C	S1	r2	drought	naive
