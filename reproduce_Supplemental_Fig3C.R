@@ -1,5 +1,4 @@
 setwd('/home/lien/data/skrypty/TFIIB/')
-setwd('/home/lien/data/skrypty/TFIIB/')
 library(tidyverse)
 source('functions.R')
 
@@ -15,12 +14,12 @@ up_thresh=50000
 samples=c(1:12)
 Groups <- create_Groups(group_sets,down_thresh,up_thresh)
 
-#* if the meta-gene matrixes for 'All_PCG' were already calculated and saved, for example by running reproduce_Fig4C.R, the following part can be skipped (it takes a lot of time)
+#* if the meta-gene matrixes for 'All_PCG' were already calculated and saved, for example by running reproduce_Fig3E.R, the following part can be skipped (it takes a lot of time)
 barcode=paste0(paste0(sample(c(letters,LETTERS),5,replace=T),collapse=""),as.integer(as.POSIXct(Sys.time())))
 output_path = paste0(barcode,'/')
 system(paste0('mkdir ',output_path),intern=F)
 
-metamatrix_data <- lapply(1:length(Groups),function(G){
+system.time({metamatrix_data <- lapply(1:length(Groups),function(G){
   
   lapply(samples,function(s){
     genes=Groups[[G]]
@@ -33,7 +32,7 @@ metamatrix_data <- lapply(1:length(Groups),function(G){
     write.table(result$mat_norm, file=paste0(output_path,'Meta_norm_',title), sep='\t', row.names = F, col.names =  F)
     return(result)
   })
-}) %>% reduce(c)
+}) %>% reduce(c)})
 
 # plot the first gene group from the first sample
 x=metamatrix_data[[1]]
@@ -50,13 +49,14 @@ lapply(metamatrix_data, function(x){
   
 })
 dev.off()
-
-
+############ heatmaps from the Fig. 3 E - combine biological repeats for each condition 
+############ and differential maps TFIIB1R58C-TFIIB1-WT
 ###### draw heatmaps from saved matrix files (to get the common scale)
-# set path to precomputed meta_gene matrixes
-# output_path = ''
-# output_path='/home/lien/data/skrypty/TFIIB/aaAib1647967542Fig4C/'
-Samples=list(WT=list(Water=c(1,9),S1=c(2,10),Recovery=c(3,11),S2=4),R58C=list(Water=5,S1=c(6,12),Recovery=7, S2=8))
+# set path to precomputed meta_gene matrixes for 'All_PCG' all protein coding genes longer than 3kb
+output_path = '/home/lien/data/skrypty/TFIIB/JhmCd1648732114/'
+Samples=list(
+  WT=list(Water=c(1,9),S1=c(2,10),Recovery=c(3,11),S2=4),
+  R58C=list(Water=5,S1=c(6,12),Recovery=7, S2=8))
 matrices <- lapply(names(Groups),function(group){
   # group=names(Groups)[3]
    lapply(Samples,function(genotype){
@@ -81,11 +81,10 @@ deltas <- lapply(names(Groups),function(group){lapply(conditions,function(condit
  })})%>% reduce(c)
 
 # set the common scale for heatmaps
- threshold=0.99
+ threshold=0.999
 max_norm = quantile(abs((unlist(matrices))),probs=threshold,na.rm=T)
 max_delta = quantile(abs((unlist(lapply(deltas,function(x){x$delta_array})))),probs=threshold,na.rm=T)
 
-  
 # plot the examplary set of heatmaps (All protein coding genes, Stress1, TFIIB1-WT and TFIIB1-R58C):
 group='All_PCG'
 lapply(names(Samples),function(genotype){
@@ -95,14 +94,14 @@ condition='S1'
     
     f_draw_matrix(norm_array=norm_map, title=title, do_scaling=F,max_scale_norm=max_norm)
 })
-d=deltas[2]
+d=deltas[[2]]
   title=paste0(d$group,'\n',d$condition,'\nR58C-WT')
   f_draw_matrix(delta_array=d$delta_array, title=title, do_scaling=F, max_scale_delta=max_delta)
 
 
 
 # make a report with all heatmaps
-  pdf_file=paste0(output_path,paste0(names(Groups),collapse='_'),'.pdf')
+  pdf_file=paste0(output_path,paste0(names(Groups),collapse='_'),'comb_replicates.pdf')
   pdf(pdf_file)
 lapply(names(Groups),function(group){ 
 lapply(names(Samples),function(genotype){
@@ -120,3 +119,43 @@ lapply(deltas, function(d){
   f_draw_matrix(delta_array=d$delta_array, title=title, do_scaling=F, max_scale_delta=max_delta)
 })
   dev.off()
+
+
+###### draw heatmaps from saved matrix files (to get the common scale)
+# set path to precomputed meta_gene matrixes
+# output_path = ''
+matrices <-  lapply(names(Groups), function(group){
+  lapply(samples,function(sample){
+    norm_matrix <- read_tsv(paste0(output_path,'Meta_norm_Sample',sample,'_',group,'_',down_thresh/1000,' kb to ',up_thresh/1000,' kb.matrix'), col_names=F) %>%
+      as.matrix()
+    scaled_norm_matrix <- (norm_matrix-mean(norm_matrix,na.rm=T))/sd(norm_matrix,na.rm=T)
+    
+  })
+})
+names(matrices)=names(Groups) 
+
+# set the common scale for heatmaps
+threshold=0.995
+max_norm = quantile(abs((unlist(matrices))),probs=threshold,na.rm=T)
+
+# plot the first heatmap
+group=names(Groups)[1]
+sample=samples[1]
+name <- unite(sample_info,c(2:4),col='name',sep='_' )[which(sample_info$sample==paste0('Sample',sample)),] %>% pull(name)
+norm_map <- matrices[[group]][[sample]]
+    title=paste0(group,' \nThresh: ',threshold,'\nSample ',sample,'   ',name)
+    f_draw_matrix(norm_array=norm_map, title=title, do_scaling=F, max_scale_norm=max_norm)
+
+# make a report with all heatmaps
+pdf_file=paste0(output_path,paste0(names(Groups),collapse='_'),'singleSamples.pdf')
+pdf(pdf_file)
+lapply(names(Groups),function(group){ 
+  lapply(samples,function(sample){
+    norm_map <- matrices[[group]][[sample]]
+    name <- unite(sample_info,c(2:4),col='name',sep='_' )[which(sample_info$sample==paste0('Sample',sample)),] %>% pull(name)
+    title=paste0(group,' \nThresh: ',threshold,'\nSample ',sample,'   ',name)
+    f_draw_matrix(norm_array=norm_map, title=title, do_scaling=F, max_scale_norm=max_norm)
+  })
+})
+
+dev.off()

@@ -1,8 +1,5 @@
 #This code reproduces the analysis of 3'RNAseq data
-library(DESeq2)
 library(tidyverse)
-library(ggpubr)
-library(ggrepel)
 setwd('/home/lien/data/skrypty/TFIIB/')
 source('functions.R')
 
@@ -31,7 +28,7 @@ pcaData <- plotPCA(vsd, intgroup=c("comparison", "genotype"), returnData=TRUE)
 percentVar <- round(100 * attr(pcaData, "percentVar"))
 ggplot(pcaData, aes(PC1, PC2, color=genotype)) +
   geom_point(size=3) +
-  scale_color_manual(values=kolory)+
+  scale_color_manual(values=genotypes_colors)+
   xlab(paste0("PC1: ",percentVar[1],"% variance")) +
   ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
   coord_fixed()+
@@ -201,7 +198,7 @@ expression_data$comparison <- factor(expression_data$comparison,levels=c('S1_0',
 
 stats <- expression_data %>%
   ggviolin(x="genotype",y="value",fill="genotype",color="genotype",alpha=0.3) +
-  scale_color_manual(values=kolory, aesthetics = c("color","fill"))+
+  scale_color_manual(values=genotypes_colors, aesthetics = c("color","fill"))+
   scale_y_log10()+
   stat_compare_means(label = "p.format",size=3, method='wilcox.test', paired=F)+
   geom_boxplot(width=0.5,size=0.5,aes(color=genotype))+ 
@@ -231,7 +228,7 @@ single_plots <- lapply(c(1:30),function(x){
     geom_point() +
     geom_line() +
     ggtitle(paste0(gene,", ",TrI)) +
-    scale_color_manual(values=kolory)+
+    scale_color_manual(values=genotypes_colors)+
     scale_y_continuous(name=NULL)+
     scale_x_discrete(name=NULL)+
     geom_errorbar(aes(ymin=mean_rpm-stdev, ymax=mean_rpm+stdev), width=.2, position=position_dodge(0.05)) +

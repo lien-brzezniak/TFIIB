@@ -136,25 +136,29 @@ calculate_metamatrix <- function(genes,sample,reach,res=100){
     transmute(GeneID, TTSrel=floor((end-start)/res)*res)
  
   for (n in 1:nrow(TTSpos)){
- 
+     #n=10
       GeneID=TTSpos$GeneID[n]
     geneLength=TTSpos$TTSrel[n] 
     meta_pos= create_meta_pos(reach, res,geneLength)
     matrix_raw <- matrix(data = 0, nrow = nrow(meta_pos), ncol = nrow(meta_pos))
     matrix_norm <- matrix(data = 0, nrow = nrow(meta_pos), ncol = nrow(meta_pos))
     data_lowerTriangle <- data[[GeneID]] %>%
-      subset(!pos1==pos2) %>%
-      transmute(GeneID,relTSS1=pos2,
-                relTSS2=pos1, norm_signal,raw_signal)
-    
+      subset(!pos1==pos2)
+    # %>%
+    #   transmute(GeneID,relTSS1=pos2,
+    #             relTSS2=pos1, norm_signal,raw_signal)
+    # 
     data_s <- data[[GeneID]]%>%
-      transmute(GeneID, relTSS1=pos1, relTSS2=pos2,norm_signal,raw_signal) %>%
-      bind_rows(data_lowerTriangle) %>%
-        right_join(meta_pos, by=c('relTSS1'='relTSS')) %>%
-      transmute(meta1=pos, raw_signal, norm_signal, relTSS2) %>%
-      right_join(meta_pos, by=c('relTSS2'='relTSS')) %>%
-      transmute(meta2=pos, meta1,raw_signal, norm_signal)
-
+      #transmute(GeneID, relTSS1=pos1, relTSS2=pos2,norm_signal,raw_signal) %>%
+      bind_rows(data_lowerTriangle)
+    data_s <- data_s[which((data_s$pos1 %in% meta_pos$relTSS) & (data_s$pos2 %in% meta_pos$relTSS)),]
+    
+    
+      #       right_join(meta_pos, by=c('relTSS1'='relTSS')) %>%
+      # transmute(meta1=pos, raw_signal, norm_signal, relTSS2) %>%
+      # right_join(meta_pos, by=c('relTSS2'='relTSS')) %>%
+      # transmute(meta2=pos, meta1,raw_signal, norm_signal)
+ 
   
     for (j in 1:nrow(data_s)) {
       matrix_raw[data_s$meta1[j],data_s$meta2[j]] <- data_s$raw_signal[j]
