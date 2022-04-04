@@ -1,0 +1,35 @@
+
+
+How to calculate interaction frequency data with 100bp resolution without calling contact matrix ?
+A homer tag file looks like this:
+Chr1.tags.tsv:
+> Chr1 6 1 1.0 1 Chr3 2889932 1 1
+> Chr1 7 1 1.0 1 Chr1 74861 0 1
+> Chr1 8 1 1.0 1 Chr1 2188847 1 1
+> Chr1 10 0 1.0 1 Chr3 16251 1 1
+> Chr1 10 1 1.0 1 Chr2 13389926 0 1
+> Chr1 11 1 1.0 1 Chr3 18073948 1 1
+> Chr1 12 1 1.0 1 Chr1 535213 1 1
+> Chr1 12 1 1.0 1 Chr1 2195473 0 1
+> Chr1 16 1 1.0 1 Chr3 16112290 1 1
+> Chr1 18 1 1.0 1 Chr5 23429534 0 1
+
+Now, use linux basic utilities ( awk | sort | uniq) to count reads for each distance rounded to 100bp (res=100):
+awk ‘$1==$6 {print int(sqrt(($2-$7)^2)/100)*100}’ ‘Chr1.tags.tsv’ | sort -g | uniq -c > chr1_distances.txt
+
+output looks like this:
+> 17646 0
+> 34110 100
+> 34334 200
+> 30484 300
+> 28384 400
+> 26800 500
+> 25698 600
+> 33438 700
+> 31754 800
+> 29674 900
+
+Next, using  the loess function from msir R package, the estimated counts were estimated, for each sample, for each chromosome
+> loess(count ~ distance, span=0.01)
+
+For distance-normalization, raw signal values from contact matrices were divided to the estimated count for given distance, chromosome and sample.
