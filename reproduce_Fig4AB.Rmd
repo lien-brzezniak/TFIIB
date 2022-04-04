@@ -1,0 +1,199 @@
+```{r}
+setwd('/home/lien/data/skrypty/TFIIB/')
+library("tidyverse")
+source('functions.R')
+```
+
+
+
+#### provide the path to GMatrix.RDS files
+```{r}
+data_dir='/home/lien/data/TFIIB/GEO_upload/HiC/'
+```
+
+
+### load the metadata for Hi-C samples
+```{r}
+sample_info <- read_tsv('/home/lien/data/skrypty/TFIIB/samples_GEO_HiC.tsv',col_types='ffffff')
+sample_info
+```
+
+
+### only Sample1 will be analysed
+```{r}
+s='1'
+
+```
+
+
+### prepare the lists of genes: from 3 to 50kb, exclusively present in each of groups from PCSD database 
+### that are enriched in the gene-body region is chromatin states S3, S12, S25 or S26
+```{r}
+group_sets=list('geneBody'=c(3,12,25,26))
+down_thresh=3000
+up_thresh=50000
+Groups <- create_Groups(group_sets,down_thresh,up_thresh,complement_rest=F,exclusive=T)
+
+```
+
+
+### Create a unique directory to save matrix files and reports
+```{r}
+barcode=paste0(paste0(sample(c(letters,LETTERS),5,replace=T),collapse=""),as.integer(as.POSIXct(Sys.time())))
+output_path = paste0(barcode,'/')
+system(paste0('mkdir ',output_path),intern=F)
+```
+
+
+### Calculate meta-gene matrizes for specified groups and samples. Immediately save the results as symmetric matrices.
+### Both raw and distance-normalized matrixes are generated
+```{r}
+metamatrix_data_4A <- lapply(1:length(Groups),function(G){
+  genes=Groups[[G]]
+  result <- calculate_metamatrix(genes,s)
+  result$sample=paste0('Sample',s)
+  result$name <- unite(sample_info,c(2:4),col='name',sep='_' )[which(sample_info$sample==result$sample),] %>% pull(name)
+  result$group=names(Groups)[G]
+  title=paste0(result$sample,'_',result$group,'_',down_thresh/1000,' kb to ',up_thresh/1000,' kb.matrix')
+  write.table(result$mat_raw, file=paste0(output_path,'Meta_raw_',title), sep='\t', row.names = F, col.names =  F)
+  write.table(result$mat_norm, file=paste0(output_path,'Meta_norm_',title), sep='\t', row.names = F, col.names =  F)
+  return(result)
+})
+
+```
+
+### Plot the first gene group from the first sample
+```{r}
+x=metamatrix_data_4A[[1]]
+title=paste0(x$sample,'   ',x$name,'\n',x$group,'; ',down_thresh/1000,' kb to ',up_thresh/1000,' kb\n',x$nr_of_genes,' genes')
+f_draw_matrix(raw_array=x$mat_raw, norm_array=x$mat_norm,title=title,threshold=0.99)
+
+```
+
+### set the common scale for heatmaps
+```{r}
+threshold=0.99
+max_norm = quantile(abs(scale(unlist(lapply(metamatrix_data_4A,function(x){x$'mat_norm'})))),probs=threshold,na.rm=T)
+
+```
+
+
+### create a pdf report with all heatmaps
+```{r}
+ pdf_file=paste0(output_path,paste0(unlist(group_sets),collapse='_'),'.pdf')
+ pdf(pdf_file)
+lapply(metamatrix_data_4A, function(x){
+  title=paste0(x$sample,'   ',x$name,'\n',x$group,'; ',down_thresh/1000,' kb to ',up_thresh/1000,' kb\n',x$nr_of_genes,' genes')
+     f_draw_matrix(raw_array=x$mat_raw, norm_array=x$mat_norm,title=title,threshold=threshold,max_scale_norm=max_norm)
+})
+dev.off()
+```
+
+### Fig. 4A, lower panels - mean asymmetry ratios in each sample
+### Pull the data from *sectors.tsv files
+```{r}
+
+sector_data <- lapply(1:12,function(i){
+  read_tsv(paste0('/home/lien/data/TFIIB/GEO_upload/HiC/Sample',i,'_sectors.tsv'), col_types='cdddc')
+}) %>% purrr::reduce(bind_rows) 
+
+```
+### prepare the lists of genes: from 3 to 50kb, exclusively present in each of groups from PCSD database that are enriched in the gene-body region is chromatin states S3, S12, S25 or S26 + all protein coding genes
+```{r}
+group_sets=list('geneBody'=c(3,12,25,26), 'other'='All_PCG')
+down_thresh=3000
+up_thresh=50000
+Groups <- create_Groups(group_sets,down_thresh,up_thresh,complement_rest=F,exclusive=T)
+
+```
+
+
+### calculate mean asymmetry ratio for each group of genes, for each sample
+```{r message=FALSE}
+summary <- make_contact_summary(data=sector_data,Groups)
+```
+
+### create plots 
+```{r}
+plots <- report_contact_summary(summary,Groups)
+```
+### add a single plot with mean asymmetry ratios for different groups, can be averaged across multiple samples. Here, all TFIIB1-WT samples are chosen
+```{r}
+plots$boot_plot <- bootANDplot(data=sector_data,Groups,merge_samples=c(1,9))[[1]]
+
+lapply(plots,function(x){x})
+```
+
+### make a pdf report with all plots and table-summary
+```{r}
+pdf_name=paste0(output_path, 'AsymRatio_Fig4AB.pdf')
+pdf(pdf_name,width = 4, height = 4)
+print(plots)
+lapply(names(Groups),function(x){
+  table <- summary %>% select(group, sample,mean_AsRatio) %>%
+    subset(group==x)%>%
+    tableGrob(theme=ttheme_default(base_size=6))
+   grid.newpage()
+  grid.draw(table)
+})
+
+dev.off()
+### plots can be saved as .svg
+# lapply(1:length(plots),function(x){
+#   svg(paste0(output_path,x,'.svg'),width = 4, height = 4)
+#   print(plots[[x]])
+#   dev.off()
+# })
+```
+
+### plot expersion for these groups of genes, based on 3'RNA-seq data
+### load metadata for 3'RNA-seq data samples and counts_table
+```{r}
+sample_info_3RNAseq <- read_tsv('sample_info_3RNAseq.tsv', col_types ='cffdffff') %>%
+  mutate(comparison=paste0(stress,'_',timepoint),
+         genotype=factor(genotype, levels=c('Wt','R58C')))
+sample_info_3RNAseq
+
+
+nor <- read_tsv('readCounts_table.tsv',col_types=paste0('c',paste0(rep('d',36),collapse='')))
+head(nor,10)
+```
+### calculate rpm, average of biological replicates and take only data from TFIIB1-WT nontreated sample
+```{r}
+mean_rpms <- calculate_mean_rpm(nor, filter_nuclear=T, filter_protCoding=T)
+WT_NT_mean_rpm <- mean_rpms[c('GeneID','Wt_S1_0')]
+```
+
+### divide genes into groups and remove genes that were not detected
+```{r}
+expression_data <- lapply(names(Groups),function(g){
+WT_NT_mean_rpm %>%
+  subset(GeneID %in% Groups[[g]])%>%
+    subset(Wt_S1_0>1) %>%
+  mutate(group=g) 
+}) %>% purrr::reduce(bind_rows)
+```
+### set the same colors as on asymmetry boot_plot
+```{r}
+kolory<- c("#8C0172", "#97523A","#4e4e4e","#99A021", "#29bc7e")
+expression_data$group <- factor(expression_data$group, levels=c("Excl_State 26","Excl_State 12", "All_PCG","Excl_State 25", "Excl_State 3" ))
+
+```
+
+### plot the results
+```{r}
+expression_data %>%
+  ggviolin(x="group",y="Wt_S1_0",alpha=0.3,color='group',fill='group') +
+  scale_color_manual(values=kolory, aesthetics = c("color","fill"))+
+   scale_y_log10(name='Expression level [rpm]',breaks=c(1,10,100,1000), labels=c('1','10','100','1000'))+
+  #ylim(0,100)+
+  scale_x_discrete(limits=c("Excl_State 26","Excl_State 12", "All_PCG","Excl_State 25", "Excl_State 3" ))+
+   geom_boxplot(aes(x=group,y=Wt_S1_0,color=group),width=0.1)+ 
+  newtheme+
+  theme( aspect.ratio=1,
+         #strip.text=element_blank(),
+         axis.title=element_text(size = 10),
+         axis.text=element_text(size = 10),
+         axis.text.x=element_text(angle = 75,hjust=1))
+```
+

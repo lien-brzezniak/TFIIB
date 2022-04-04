@@ -1,0 +1,74 @@
+```{r}
+setwd('/home/lien/data/skrypty/TFIIB/')
+library("tidyverse")
+source('functions.R')
+```
+#### divide protein coding genes based on their expression in TFIIB1-WT non-treated plants
+#####  readCounts_table.tsv can be downloaded from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE199056
+```{r}
+nor <- read_tsv("readCounts_table.tsv")
+
+sample_info_3RNAseq <- read_tsv('sample_info_3RNAseq.tsv', col_types ='cffdffff') %>%
+  mutate(comparison=paste0(stress,'_',timepoint),
+         genotype=factor(genotype, levels=c('Wt','R58C')))
+sample_info_3RNAseq
+```
+##### calculate rpm, average of biological replicates. Take only data from TFIIB1-WT nontreated sample, remove genes that were not detected, filter by length and define 20% percentile groups 
+```{r}
+down_thresh=3000
+up_thresh=50000
+mean_expression <- calculate_mean_rpm(nor, filter_nuclear=T, filter_protCoding=T)
+WT_NT_mean_rpm <- mean_expression[c('GeneID','Wt_S1_0')] %>%
+    subset(Wt_S1_0>1) %>%
+   left_join(all_genes,by='GeneID') %>%
+   subset((gLength > down_thresh) &
+                          (gLength < up_thresh)) %>%
+  mutate(W_cent = ntile(Wt_S1_0,n=5))
+Groups <- lapply(c(1:5), function(c){
+  subset(WT_NT_mean_rpm,W_cent==c) %>% pull(GeneID)
+})
+names(Groups)=paste0('centile ',1:5)
+```
+
+
+### load the metadata for Hi-C samples
+```{r}
+sample_info <- read_tsv('/home/lien/data/skrypty/TFIIB/samples_GEO_HiC.tsv',col_types='ffffff')
+sample_info
+```
+
+### Upper panels - mean asymmetry ratios in Sample1 with confidence intervals
+##### Pull the data from *sectors.tsv files
+```{r}
+sector_data <- lapply(1:12,function(i){
+  read_tsv(paste0('/home/lien/data/TFIIB/GEO_upload/HiC/Sample',i,'_sectors.tsv'), col_types='cdddc')
+}) %>% purrr::reduce(bind_rows) 
+
+```
+##### generate a single plot with mean asymmetry ratios for different groups, can be averaged across multiple samples. Here, TFIIB1-WT non-treated samples are chosen
+```{r}
+kolory=c("#190C65", "#213682", "#2B5B99" ,"#3E7CA6" ,"#6598A4")
+boot_plot <- bootANDplot(data=sector_data,Groups,merge_samples=c(1,9))
+
+boot_plot[[1]]+
+   scale_color_manual(values=kolory,breaks=names(Groups)) +
+   scale_x_discrete(limits=names(Groups))
+```
+
+### plot expresion for these groups of genes, based on 3'RNA-seq data
+
+```{r}
+WT_NT_mean_rpm %>%
+  ggviolin(x="W_cent",y="Wt_S1_0",alpha=0.3,color='W_cent',fill='W_cent') +
+  scale_color_manual(values=kolory, aesthetics = c("color","fill"))+
+   scale_y_log10(name='Expression level [rpm]',breaks=c(1,10,100,1000), labels=c('1','10','100','1000'))+
+ scale_x_discrete(labels=names(Groups))+
+   geom_boxplot(aes(x=W_cent,y=Wt_S1_0,color=W_cent),width=0.1)+ 
+  newtheme+
+  theme( aspect.ratio=1,
+         #strip.text=element_blank(),
+         axis.title=element_text(size = 10),
+         axis.text=element_text(size = 10),
+         axis.text.x=element_text(angle = 75,hjust=1))
+```
+

@@ -1,0 +1,323 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+```{r}
+setwd('/home/lien/data/skrypty/TFIIB/')
+library("tidyverse")
+source('functions.R')
+```
+
+
+#####  provide the path to GMatrix.RDS files
+```{r}
+data_dir='/home/lien/data/TFIIB/GEO_upload/HiC/'
+```
+
+
+#####  load the metadata for Hi-C samples
+```{r}
+sample_info <- read_tsv('/home/lien/data/skrypty/TFIIB/samples_GEO_HiC.tsv',col_types='ffffff')
+sample_info
+```
+
+
+#####  analyse all samples
+```{r}
+samples=c(1:12)
+
+```
+
+
+#####  prepare the lists of genes: from 3 to 50kb, that lost or gained trainability in TFIIB1-R58C  (see functions.R and reproduce_Fig1and2.Rmd for details).
+```{r}
+group_sets=list('other'=c('Trainability_Loss','Trainability_Gain'))
+down_thresh=3000
+up_thresh=50000
+Groups <- create_Groups(group_sets,down_thresh,up_thresh,complement_rest=F,exclusive=F)
+
+```
+
+
+#####  Create a unique directory to save matrix files and reports
+```{r}
+barcode=paste0(paste0(sample(c(letters,LETTERS),5,replace=T),collapse=""),as.integer(as.POSIXct(Sys.time())))
+output_path = paste0(barcode,'/')
+system(paste0('mkdir ',output_path),intern=F)
+```
+
+
+#####  Calculate meta-gene matrizes for specified groups and samples. Immediately save the results as symmetric matrices.
+#####  Both raw and distance-normalized matrixes are generated.
+```{r}
+system.time({
+metamatrix_data <- lapply(1:length(Groups),function(G){
+  lapply(samples,function(s){
+    genes=Groups[[G]]
+    result <- calculate_metamatrix(genes,s)
+    result$sample=paste0('Sample',s)
+    result$name <- unite(sample_info,c(2:4),col='name',sep='_' )[which(sample_info$sample==result$sample),] %>% pull(name)
+    result$group=names(Groups)[G]
+    title=paste0(result$sample,'_',result$group,'_',down_thresh/1000,' kb to ',up_thresh/1000,' kb.matrix')
+    write.table(result$mat_raw, file=paste0(output_path,'Meta_raw_',title), sep='\t', row.names = F, col.names =  F)
+    write.table(result$mat_norm, file=paste0(output_path,'Meta_norm_',title), sep='\t', row.names = F, col.names =  F)
+    return(result)
+  })
+}) %>% reduce(c)
+})
+
+```
+
+#####  Plot the first gene group from the first sample
+```{r}
+x=metamatrix_data[[1]]
+title=paste0(x$sample,'   ',x$name,'\n',x$group,'; ',down_thresh/1000,' kb to ',up_thresh/1000,' kb\n',x$nr_of_genes,' genes')
+f_draw_matrix(raw_array=x$mat_raw, norm_array=x$mat_norm,title=title,threshold=0.99)
+
+```
+
+#### Supplemental Fig. 5
+#####  set the common scale for heatmaps
+```{r}
+threshold=0.995
+max_norm = quantile(abs(scale(unlist(lapply(metamatrix_data,function(x){x$'mat_norm'})))),probs=threshold,na.rm=T)
+
+```
+
+
+
+##### create a pdf report with all heatmaps
+```{r}
+ pdf_file=paste0(output_path,paste0(unlist(group_sets),collapse='_'),'_commonScale.pdf')
+ pdf(pdf_file)
+lapply(metamatrix_data, function(x){
+  title=paste0(x$sample,'   ',x$name,'\n',x$group,'; ',down_thresh/1000,' kb to ',up_thresh/1000,' kb\n',x$nr_of_genes,' genes')
+     f_draw_matrix(raw_array=x$mat_raw, norm_array=x$mat_norm,title=title,threshold=threshold,max_scale_norm=max_norm)
+})
+dev.off()
+```
+####  Fig. 5, upper panels
+#####  the heatmaps on Fig. 5 are from combined samples from water/drought conditions
+#####  matrixes for each group of genes and for each sample can be loaded directly. Change the output_path to the dir containing matrices saved in the previous step, if necessary
+
+```{r}
+#output_path='uawFz1649059942/'
+Samples=list(WT=list(water=c(1,3,9,11),drought=c(2,4,10)),R58C=list(water=c(5,7),drought=c(6,8,12)))
+matrices <- lapply(names(Groups),function(group){
+   lapply(Samples,function(genotype){
+    lapply(genotype,function(condition){
+      lapply(condition,function(sample){
+        norm_matrix <- read_tsv(paste0(output_path,'Meta_norm_Sample',sample,'_',group,'_',down_thresh/1000,' kb to ',up_thresh/1000,' kb.matrix'), col_names=F, col_types=cols(.default = "d")) %>%
+          as.matrix()
+         scaled_norm_matrix <- (norm_matrix-mean(norm_matrix,na.rm=T))/sd(norm_matrix,na.rm=T)
+      }) %>% Reduce('+',.)/length(condition)
+    })
+  })
+})
+names(matrices)<-names(Groups)
+```
+
+#####  calculate differential matrices (TFIIB1-WT - TFIIB1-R58C) in each condition
+```{r}
+conditions=c('drought','water')
+deltas <- lapply(names(Groups),function(group){lapply(conditions,function(condition){
+ d_array = matrices[[group]][['R58C']][[condition]]-matrices[[group]][['WT']][[condition]]
+ title=paste0(group,'\n',condition,'\nR58C-WT\nDifferential matrix')
+ return(list(delta_array=d_array, group=group, condition=condition))
+ })})%>% reduce(c)
+```
+
+
+#####  set the common scale for heatmaps
+```{r}
+threshold=0.995
+max_norm = quantile(abs((unlist(matrices))),probs=threshold,na.rm=T)
+max_delta = quantile(abs((unlist(lapply(deltas,function(x){x$delta_array})))),probs=threshold,na.rm=T)
+
+```
+#####  plot the heatmaps
+```{r}
+lapply(names(Groups),function(group){ 
+lapply(names(Samples),function(genotype){
+  lapply(conditions,function(condition){
+    norm_map <- matrices[[group]][[genotype]][[condition]]
+    title=paste0(group,' \nThresh: ',threshold,'\n',genotype,' ',condition)
+    
+    f_draw_matrix(norm_array=norm_map, title=title, do_scaling=F,max_scale_norm=max_norm)
+  })
+})
+})
+lapply(deltas, function(d){
+  title=paste0(d$group,'\n',d$condition,'\nR58C-WT')
+  
+  f_draw_matrix(delta_array=d$delta_array, title=title, do_scaling=F, max_scale_delta=max_delta)
+})
+
+```
+#####  make a pdf report
+```{r}
+  pdf_file=paste0(output_path,paste0(names(Groups),collapse='_'),'_combSamples.pdf')
+  pdf(pdf_file)
+lapply(names(Groups),function(group){ 
+lapply(names(Samples),function(genotype){
+  lapply(conditions,function(condition){
+    norm_map <- matrices[[group]][[genotype]][[condition]]
+    title=paste0(group,' \nThresh: ',threshold,'\n',genotype,' ',condition)
+    
+    f_draw_matrix(norm_array=norm_map, title=title, do_scaling=F,max_scale_norm=max_norm)
+  })
+})
+})
+lapply(deltas, function(d){
+  title=paste0(d$group,'\n',d$condition,'\nR58C-WT')
+  
+  f_draw_matrix(delta_array=d$delta_array, title=title, do_scaling=F, max_scale_delta=max_delta)
+})
+  dev.off()
+```
+
+####  Fig. 5, lower panels - mean asymmetry ratios in each sample
+#####  Pull the data from *sectors.tsv files
+```{r}
+
+sector_data <- lapply(1:12,function(i){
+  read_tsv(paste0('/home/lien/data/TFIIB/GEO_upload/HiC/Sample',i,'_sectors.tsv'), col_types='cdddc')
+}) %>% reduce(bind_rows) 
+
+```
+
+#####  calculate mean asymmetry ratio for each group of genes, for each sample
+```{r message=FALSE}
+summary <- make_contact_summary(data=sector_data,Groups)
+```
+
+#####  create plots 
+```{r}
+plots <- report_contact_summary(summary,Groups)
+```
+#####  add a single plot with mean asymmetry ratios for different groups, can be averaged across multiple samples. Here, TFIIB1-WT non-treated samples are chosen (2 biological repeats)
+```{r}
+plots$boot_plot <- bootANDplot(data=sector_data,Groups,merge_samples=c(1,9))
+
+lapply(plots,function(x){x})
+```
+
+#####  make a pdf report with all plots and table-summary
+```{r}
+pdf_name=paste0(output_path, 'AsymRatio_Fig5.pdf')
+pdf(pdf_name,width = 4, height = 4)
+print(plots)
+lapply(names(Groups),function(x){
+  table <- summary %>% select(group, sample,mean_AsRatio) %>%
+    subset(group==x)%>%
+    tableGrob(theme=ttheme_default(base_size=6))
+   grid.newpage()
+  grid.draw(table)
+})
+
+dev.off()
+#####  plots can be saved as .svg
+#####  lapply(1:length(plots),function(x){
+#####    svg(paste0(output_path,x,'.svg'),width = 4, height = 4)
+#####    print(plots[[x]])
+#####    dev.off()
+#####  })
+```
+#### Supplemental Fig.5B - single gene contact matrices
+##### generate lists of genes
+```{r}
+group_sets=list('custom_gene_list'=c('AT1G03080','AT3G12580','AT5G20900','AT4G39980','AT2G39800',
+                                     'AT1G09970','AT1G62660','AT4G16760',
+                                     'AT4G18950','AT4G23050','AT5G10650','AT5G51070'))
+#group_sets=list('other'=c('Trainability_Loss','Trainability_Gain'))
+Groups <- create_Groups(group_sets)
+```
+
+##### define samples to combine data. Here, TFIIB1-WT and TFIIB1-R58C drought samples (see <sample_info>)  
+```{r}
+sample_sets=list('Wt'=as.character(c(2,4,10)),'R58C'=as.character(c(6,8,12)))
+
+```
+
+#####  extract a contact matrix for each gene, each sample
+```{r}
+data <- lapply(names(Groups),function(group){
+  genes = Groups[[group]]
+  d <- lapply(names(sample_sets),function(genotype){
+    d <-lapply(sample_sets[[genotype]],function(sample){
+      # browser()
+      gene_matrix <- singleGene_map(genes,sample,format='norm')
+    })
+    names(d) <- sample_sets[[genotype]]
+    return(d)
+  })
+  names(d) <- names(sample_sets)
+  return(d)
+})
+names(data) <- names(Groups)
+
+```
+
+##### set the threshold for heatmaps common scale
+```{r}
+threshold=0.995
+```
+
+
+##### average tha matrixes for each gene across the sample sets 
+```{r}
+combined_repl_data <- lapply(names(Groups),function(group){
+  d <-lapply(Groups[[group]],function(gene){
+    d <-lapply(names(sample_sets), function(set){
+      lapply(sample_sets[[set]], function(sample){
+        norm_matrix <- data[[group]][[set]][[sample]][[gene]]
+        scaled_norm_matrix <- (norm_matrix-mean(norm_matrix,na.rm=T))/sd(norm_matrix,na.rm=T)
+      })%>% Reduce('+',.)/length(sample_sets[[set]])
+    })
+    names(d) <- names(sample_sets)
+    d$max_norm = quantile(abs((unlist(d))),probs=threshold,na.rm=T)
+    return(d)
+  })
+  names(d) <- Groups[[group]]
+  return(d)
+})
+names(combined_repl_data) <- names(Groups)
+```
+
+##### plot the first gene:
+```{r}
+group=names(Groups)[1]
+gene=Groups[[1]][1]
+lapply(names(sample_sets), function(set){
+  matrix <- combined_repl_data[[group]][[gene]][[set]]
+  thresh=combined_repl_data[[group]][[gene]][['max_norm']]
+  title=paste0(gene,' from group: ',group,'\n',set,' (',paste0(sample_sets[[set]],collapse=', '),')')
+  f_draw_matrix(norm_array=matrix,title=title, max_scale_norm=thresh)
+})
+
+```
+
+##### plot all heatmaps in a pdf report, 1 file for 1 group of genes defined in group_sets
+```{r}
+barcode=paste0(paste0(sample(c(letters,LETTERS),5,replace=T),collapse=""),as.integer(as.POSIXct(Sys.time())))
+output_path = paste0(barcode,'_single_gene_matrices/')
+system(paste0('mkdir ',output_path),intern=F)
+lapply(1:length(Groups), function(g){
+  group=names(Groups)[g]
+  genes=Groups[[g]]
+  pdf_file=paste0(output_path,group,'_G',g,'_single_metagenMaps.pdf')
+  pdf(pdf_file)
+  
+  lapply(genes,function(gene){
+    lapply(names(sample_sets), function(set){
+      matrix <- combined_repl_data[[group]][[gene]][[set]]
+      thresh=combined_repl_data[[group]][[gene]][['max_norm']]
+      title=paste0(gene,' from group: ',group,'\n',set,' (',paste0(sample_sets[[set]],collapse=', '),')')
+      f_draw_matrix(norm_array=matrix,title=title, max_scale_norm=thresh)
+    })
+  })
+  dev.off() 
+})
+```
+
